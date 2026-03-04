@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="Accurate step counter PWA for Android">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>FitTracker - Step Counter</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Permission Screen -->
+        <div id="permission-screen" class="screen">
+            <div class="permission-content">
+                <div class="permission-icon">🏃</div>
+                <h1>FitTracker</h1>
+                <p>Accurate Step Counter</p>
+                <div class="permission-info">
+                    <p>The step counter that <strong>respects your privacy</strong> and <strong>never lies about your steps</strong>.</p>
+                    <ul>
+                        <li>🔒 Zero data collection — everything stays on YOUR device</li>
+                        <li>🎯 Self-calibrating accuracy — learn YOUR walking pattern</li>
+                        <li>🏆 Achievements & daily streaks to keep you motivated</li>
+                        <li>⚡ No account, no ads, no tracking — forever free</li>
+                    </ul>
+                </div>
+                <button id="start-btn" class="btn-primary">Start Tracking</button>
+                <p class="hint">Tap to grant motion sensor permission</p>
+            </div>
+        </div>
+
+        <!-- Main Tracker Screen -->
+        <div id="tracker-screen" class="screen hidden">
+            <!-- Status Banner -->
+            <div id="status-banner" class="status-banner hidden">
+                <span id="status-icon">⚠️</span>
+                <span id="status-message">Checking sensors...</span>
+            </div>
+
+            <!-- Header -->
+            <header>
+                <h1>FitTracker</h1>
+                <div class="date" id="current-date"></div>
+                <div class="mode-badge" id="mode-badge">Sensor Mode</div>
+            </header>
+
+            <!-- Step Circle -->
+            <div class="step-circle-container">
+                <svg class="progress-ring" viewBox="0 0 260 260">
+                    <circle class="progress-ring-bg" cx="130" cy="130" r="120" />
+                    <circle class="progress-ring-fill" id="progress-ring" cx="130" cy="130" r="120" />
+                </svg>
+                <div class="step-info">
+                    <div class="step-count" id="step-count">0</div>
+                    <div class="step-label">steps</div>
+                    <div class="step-goal" id="step-goal-text">Goal: 10,000</div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📏</div>
+                    <div class="stat-value" id="distance">0.00</div>
+                    <div class="stat-label">km</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔥</div>
+                    <div class="stat-value" id="calories">0</div>
+                    <div class="stat-label">kcal</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-value" id="duration">0:00</div>
+                    <div class="stat-label">time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-value" id="pace">0</div>
+                    <div class="stat-label">steps/min</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <button id="toggle-btn" class="btn-control btn-start">
+                    <span id="toggle-icon">▶</span>
+                    <span id="toggle-text">Start</span>
+                </button>
+                <button id="reset-btn" class="btn-control btn-reset">
+                    <span>↺</span>
+                    <span>Reset</span>
+                </button>
+            </div>
+
+            <!-- Manual Step Button (shown when sensors unavailable) -->
+            <div id="manual-step-section" class="manual-step-section hidden">
+                <p class="manual-hint">Sensors unavailable over HTTP. Tap the button to count steps manually, or deploy to HTTPS for auto-detection.</p>
+                <button id="manual-step-btn" class="btn-manual-step">👟 Tap = Step</button>
+            </div>
+
+            <!-- Streak & Achievement Banner -->
+            <div class="streak-banner" id="streak-banner">
+                <div class="streak-flame">
+                    <span id="streak-icon">🔥</span>
+                    <span class="streak-count" id="streak-count">0</span>
+                    <span class="streak-label">day streak</span>
+                </div>
+                <div class="streak-best">
+                    Best: <span id="streak-best">0</span> days
+                </div>
+            </div>
+
+            <!-- Achievements Section -->
+            <div class="achievements-section">
+                <h2>🏆 Achievements</h2>
+                <div class="achievements-grid" id="achievements-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- Walking Challenge -->
+            <div class="challenge-section">
+                <h2>⚡ Quick Challenge</h2>
+                <div id="challenge-area">
+                    <div class="challenge-buttons" id="challenge-buttons">
+                        <button class="btn-challenge" data-steps="500" data-time="5">500 steps in 5 min</button>
+                        <button class="btn-challenge" data-steps="1000" data-time="10">1K steps in 10 min</button>
+                        <button class="btn-challenge" data-steps="2000" data-time="20">2K steps in 20 min</button>
+                    </div>
+                    <div class="challenge-active hidden" id="challenge-active">
+                        <div class="challenge-progress">
+                            <div class="challenge-title" id="challenge-title">Challenge</div>
+                            <div class="challenge-bar-bg">
+                                <div class="challenge-bar-fill" id="challenge-bar"></div>
+                            </div>
+                            <div class="challenge-stats">
+                                <span id="challenge-steps">0/500 steps</span>
+                                <span id="challenge-timer">5:00 left</span>
+                            </div>
+                        </div>
+                        <button class="btn-challenge-cancel" id="challenge-cancel">Cancel</button>
+                    </div>
+                    <div class="challenge-result hidden" id="challenge-result">
+                        <div id="challenge-result-text"></div>
+                        <button class="btn-challenge" id="challenge-dismiss">OK</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Privacy Dashboard -->
+            <div class="privacy-section">
+                <h2>🔒 Privacy Dashboard</h2>
+                <div class="privacy-card">
+                    <div class="privacy-score">
+                        <div class="privacy-score-number">100%</div>
+                        <div class="privacy-score-label">Private</div>
+                    </div>
+                    <div class="privacy-details">
+                        <div class="privacy-row"><span class="priv-icon">✅</span> No data sent to any server</div>
+                        <div class="privacy-row"><span class="priv-icon">✅</span> No account or login required</div>
+                        <div class="privacy-row"><span class="priv-icon">✅</span> No analytics or tracking scripts</div>
+                        <div class="privacy-row"><span class="priv-icon">✅</span> No cookies (uses localStorage only)</div>
+                        <div class="privacy-row"><span class="priv-icon">✅</span> No ads or third-party code</div>
+                        <div class="privacy-row"><span class="priv-icon">✅</span> Only sensor used: accelerometer</div>
+                        <div class="privacy-row"><span class="priv-icon">✅</span> Open source — verify yourself</div>
+                        <div class="privacy-row storage-row">
+                            <span class="priv-icon">💾</span> 
+                            Storage used: <span id="storage-used">0 KB</span>
+                        </div>
+                    </div>
+                    <button class="btn-export" id="export-btn">📥 Export My Data (CSV)</button>
+                    <button class="btn-delete-data" id="delete-all-btn">🗑️ Delete All My Data</button>
+                </div>
+            </div>
+
+            <!-- Calibration Wizard -->
+            <div class="calibration-section">
+                <h2>🎯 Calibration</h2>
+                <p class="calibration-desc">Walk exactly <strong>20 steps</strong> while the calibration runs. The app will learn your step pattern and auto-adjust sensitivity + stride length.</p>
+                <div id="calibration-area">
+                    <button class="btn-calibrate" id="calibrate-btn">Start Calibration</button>
+                    <div class="calibration-active hidden" id="calibration-active">
+                        <div class="calibration-status" id="calibration-status">Walk 20 steps now...</div>
+                        <div class="calibration-detected">Detected: <span id="calibration-count">0</span> raw peaks</div>
+                        <button class="btn-calibrate-done" id="calibrate-done-btn">I've walked 20 steps</button>
+                        <button class="btn-challenge-cancel" id="calibrate-cancel-btn">Cancel</button>
+                    </div>
+                    <div class="calibration-result hidden" id="calibration-result">
+                        <div id="calibration-result-text"></div>
+                        <button class="btn-calibrate" id="calibration-dismiss">OK</button>
+                    </div>
+                </div>
+                <div class="calibration-status-line" id="calibration-status-line"></div>
+            </div>
+
+            <!-- History Section -->
+            <div class="history-section">
+                <h2>📊 Recent History</h2>
+                <div id="history-list" class="history-list">
+                    <p class="no-history">No history yet. Start walking!</p>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="settings-section">
+                <h2>⚙️ Settings</h2>
+                <div class="setting-row">
+                    <label for="step-goal">Daily Step Goal</label>
+                    <input type="number" id="step-goal" value="10000" min="1000" max="50000" step="500">
+                </div>
+                <div class="setting-row">
+                    <label for="stride-length">Stride Length (cm)</label>
+                    <input type="number" id="stride-length" value="75" min="40" max="120" step="1">
+                </div>
+                <div class="setting-row">
+                    <label for="body-weight">Body Weight (kg)</label>
+                    <input type="number" id="body-weight" value="70" min="30" max="200" step="1">
+                </div>
+                <div class="setting-row">
+                    <label for="sensitivity">Detection Sensitivity</label>
+                    <select id="sensitivity">
+                        <option value="low">Low (less false steps)</option>
+                        <option value="medium" selected>Medium (balanced)</option>
+                        <option value="high">High (catches light steps)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Debug (hidden by default) -->
+            <div class="debug-section hidden" id="debug-section">
+                <h3>Sensor Debug</h3>
+                <pre id="debug-output"></pre>
+            </div>
+
+            <footer>
+                <p>FitTracker PWA &middot; Keep your phone in your pocket for best results</p>
+                <button id="debug-toggle" class="btn-link">Toggle Debug</button>
+            </footer>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
