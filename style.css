@@ -265,6 +265,119 @@ header h1 {
     margin: 1.5rem 0;
 }
 
+/* ==================== BACKGROUND TRACKING ==================== */
+.bg-tracking-section {
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 0.8rem 1rem;
+    margin: 0.5rem 0 1rem;
+}
+
+.bg-tracking-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.bg-tracking-info {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.bg-icon {
+    font-size: 1.3rem;
+}
+
+.bg-label {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.bg-sublabel {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.1rem;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: #333;
+    border-radius: 26px;
+    transition: 0.3s;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--accent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(22px);
+}
+
+.bg-status {
+    font-size: 0.75rem;
+    margin-top: 0.4rem;
+    color: var(--text-muted);
+}
+
+.bg-status.bg-active {
+    color: var(--success);
+}
+
+.bg-status.bg-standby {
+    color: var(--text-muted);
+}
+
+.bg-indicator {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 230, 118, 0.15);
+    color: var(--success);
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 20px;
+    z-index: 1000;
+    animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 /* ==================== STATUS BANNER ==================== */
 .status-banner {
     background: rgba(255, 152, 0, 0.15);

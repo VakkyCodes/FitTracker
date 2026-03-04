@@ -99,6 +99,25 @@
                 </button>
             </div>
 
+            <!-- Background Tracking -->
+            <div class="bg-tracking-section">
+                <div class="bg-tracking-row">
+                    <div class="bg-tracking-info">
+                        <span class="bg-icon">🔋</span>
+                        <div>
+                            <div class="bg-label">Keep counting when screen is off</div>
+                            <div class="bg-sublabel">Uses silent audio to stay alive</div>
+                        </div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="bg-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div id="bg-status" class="bg-status"></div>
+            </div>
+            <div id="bg-indicator" class="bg-indicator hidden">🟢 Background active</div>
+
             <!-- Manual Step Button (shown when sensors unavailable) -->
             <div id="manual-step-section" class="manual-step-section hidden">
                 <p class="manual-hint">Sensors unavailable over HTTP. Tap the button to count steps manually, or deploy to HTTPS for auto-detection.</p>

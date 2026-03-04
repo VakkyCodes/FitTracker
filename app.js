@@ -104,6 +104,12 @@
         calibrationPeaks: 0,
         calibrationData: [],
         calibrated: false,
+
+        // Background tracking
+        wakeLock: null,
+        silentAudioCtx: null,
+        silentSource: null,
+        backgroundKeepAlive: false,
     };
 
     const els = {};
@@ -182,6 +188,11 @@
         els.debugSection = document.getElementById('debug-section');
         els.debugOutput = document.getElementById('debug-output');
         els.debugToggle = document.getElementById('debug-toggle');
+
+        // Background tracking
+        els.bgToggle = document.getElementById('bg-toggle');
+        els.bgStatus = document.getElementById('bg-status');
+        els.bgIndicator = document.getElementById('bg-indicator');
     }
 
     // ==================== INIT ====================
@@ -207,6 +218,12 @@
         checkSensorPermission();
         setInterval(autoSave, CONFIG.AUTO_SAVE_INTERVAL);
         setInterval(checkMidnightReset, 60000);
+
+        // Restore background mode preference
+        if (els.bgToggle) {
+            const bgPref = localStorage.getItem('fittracker_bgMode');
+            els.bgToggle.checked = bgPref === '1';
+        }
     }
 
     // ==================== SENSOR DETECTION ====================
@@ -344,11 +361,12 @@
             els.calibrateBtn.style.display = '';
         });
 
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && state.isTracking) {
-                state.lastTickTime = Date.now();
-            }
-        });
+        // Background tracking toggle
+        if (els.bgToggle) {
+            els.bgToggle.addEventListener('change', toggleBackgroundMode);
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
     }
 
     async function requestMotionPermission() {
@@ -405,6 +423,11 @@
             }
         }
 
+        // Enable background keep-alive if toggle is on
+        if (els.bgToggle && els.bgToggle.checked) {
+            enableBackgroundKeepAlive();
+        }
+
         state.timerInterval = setInterval(updateTimer, 1000);
         els.toggleBtn.classList.remove('btn-start');
         els.toggleBtn.classList.add('btn-pause');
@@ -418,11 +441,149 @@
         window.removeEventListener('devicemotion', handleMotion);
         if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
         if (state.lastTickTime) { state.elapsedMs += Date.now() - state.lastTickTime; state.lastTickTime = null; }
+        disableBackgroundKeepAlive();
         els.toggleBtn.classList.remove('btn-pause');
         els.toggleBtn.classList.add('btn-start');
         els.toggleIcon.textContent = '▶';
         els.toggleText.textContent = 'Start';
         autoSave();
+    }
+
+    // ==================== BACKGROUND KEEP-ALIVE ====================
+    function toggleBackgroundMode() {
+        if (els.bgToggle.checked) {
+            if (state.isTracking) enableBackgroundKeepAlive();
+            updateBgStatus('on');
+        } else {
+            disableBackgroundKeepAlive();
+            updateBgStatus('off');
+        }
+        localStorage.setItem('fittracker_bgMode', els.bgToggle.checked ? '1' : '0');
+    }
+
+    function enableBackgroundKeepAlive() {
+        if (state.backgroundKeepAlive) return;
+        state.backgroundKeepAlive = true;
+
+        // 1) Screen Wake Lock — keeps screen on (dimmed) so JS runs
+        requestWakeLock();
+
+        // 2) Silent Audio — the real trick for screen-off on Android
+        //    Chrome keeps the page alive if audio is playing
+        startSilentAudio();
+
+        updateBgStatus('active');
+    }
+
+    function disableBackgroundKeepAlive() {
+        state.backgroundKeepAlive = false;
+
+        // Release wake lock
+        if (state.wakeLock) {
+            state.wakeLock.release().catch(() => {});
+            state.wakeLock = null;
+        }
+
+        // Stop silent audio
+        stopSilentAudio();
+
+        updateBgStatus(els.bgToggle && els.bgToggle.checked ? 'on' : 'off');
+    }
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                state.wakeLock = await navigator.wakeLock.request('screen');
+                state.wakeLock.addEventListener('release', () => {
+                    // Re-acquire if still tracking
+                    if (state.isTracking && state.backgroundKeepAlive) {
+                        setTimeout(() => requestWakeLock(), 1000);
+                    }
+                });
+            }
+        } catch (e) {
+            // Wake Lock not available or denied — silent audio still works
+        }
+    }
+
+    function startSilentAudio() {
+        try {
+            if (state.silentAudioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+
+            state.silentAudioCtx = new AudioContext();
+
+            // Create a silent oscillator (gain = 0 → no sound)
+            const oscillator = state.silentAudioCtx.createOscillator();
+            const gainNode = state.silentAudioCtx.createGain();
+            gainNode.gain.value = 0.001; // near-silent (0 may be optimized away)
+            oscillator.frequency.value = 1; // 1 Hz — below human hearing
+            oscillator.connect(gainNode);
+            gainNode.connect(state.silentAudioCtx.destination);
+            oscillator.start();
+            state.silentSource = oscillator;
+
+            // Also create a media element as backup (some Chrome versions need this)
+            if (!state.silentAudioEl) {
+                const audio = document.createElement('audio');
+                // Tiny silent WAV (44 bytes header + minimal data) as base64
+                audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+                audio.loop = true;
+                audio.volume = 0.01;
+                audio.setAttribute('playsinline', '');
+                state.silentAudioEl = audio;
+            }
+            state.silentAudioEl.play().catch(() => {});
+        } catch (e) {
+            // Audio not available
+        }
+    }
+
+    function stopSilentAudio() {
+        if (state.silentSource) {
+            try { state.silentSource.stop(); } catch (e) {}
+            state.silentSource = null;
+        }
+        if (state.silentAudioCtx) {
+            try { state.silentAudioCtx.close(); } catch (e) {}
+            state.silentAudioCtx = null;
+        }
+        if (state.silentAudioEl) {
+            state.silentAudioEl.pause();
+            state.silentAudioEl.currentTime = 0;
+        }
+    }
+
+    function handleVisibilityChange() {
+        if (document.visibilityState === 'visible') {
+            if (state.isTracking) {
+                state.lastTickTime = Date.now();
+                // Re-acquire wake lock (it may have been released)
+                if (state.backgroundKeepAlive) requestWakeLock();
+            }
+            updateUI();
+        } else {
+            // Going to background — save data in case we get killed
+            if (state.isTracking) autoSave();
+        }
+    }
+
+    function updateBgStatus(status) {
+        if (!els.bgStatus) return;
+        if (status === 'active') {
+            els.bgStatus.textContent = '🟢 Background tracking active';
+            els.bgStatus.className = 'bg-status bg-active';
+            if (els.bgIndicator) els.bgIndicator.classList.remove('hidden');
+        } else if (status === 'on') {
+            els.bgStatus.textContent = 'Will activate when tracking starts';
+            els.bgStatus.className = 'bg-status bg-standby';
+            if (els.bgIndicator) els.bgIndicator.classList.add('hidden');
+        } else {
+            els.bgStatus.textContent = '';
+            els.bgStatus.className = 'bg-status';
+            if (els.bgIndicator) els.bgIndicator.classList.add('hidden');
+        }
     }
 
     function resetCounter() {
