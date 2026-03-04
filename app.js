@@ -573,14 +573,17 @@
     function handleVisibilityChange() {
         if (document.visibilityState === 'visible') {
             if (state.isTracking) {
+                // Resume ticking from now — elapsed time was already accumulated on hide
                 state.lastTickTime = Date.now();
                 // Re-acquire wake lock (it may have been released)
                 if (state.backgroundKeepAlive) requestWakeLock();
             }
             updateUI();
         } else {
-            // Going to background — IMMEDIATELY save everything
-            if (state.isTracking) {
+            // Going to background — accumulate elapsed time and save IMMEDIATELY
+            if (state.isTracking && state.lastTickTime) {
+                state.elapsedMs += Date.now() - state.lastTickTime;
+                state.lastTickTime = null; // prevent double-counting
                 saveTodayData();
                 saveSettings();
             }
