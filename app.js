@@ -224,6 +224,20 @@
             const bgPref = localStorage.getItem('fittracker_bgMode');
             els.bgToggle.checked = bgPref === '1';
         }
+
+        // Auto-resume tracking if page was killed while tracking
+        if (state._shouldAutoResume) {
+            delete state._shouldAutoResume;
+            setTimeout(() => {
+                startTracking();
+                showStatus('info', '🔄', 'Tracking auto-resumed from previous session');
+                setTimeout(() => {
+                    if (!els.statusBanner.classList.contains('status-error')) {
+                        els.statusBanner.classList.add('hidden');
+                    }
+                }, 3000);
+            }, 500);
+        }
     }
 
     // ==================== SENSOR DETECTION ====================
@@ -396,6 +410,7 @@
         updateUI();
         checkAchievements();
         updateChallengeProgress();
+        quickSave();
         if (navigator.vibrate) navigator.vibrate(30);
         els.manualStepBtn.style.transform = 'scale(0.95)';
         setTimeout(() => { els.manualStepBtn.style.transform = ''; }, 100);
@@ -564,8 +579,11 @@
             }
             updateUI();
         } else {
-            // Going to background — save data in case we get killed
-            if (state.isTracking) autoSave();
+            // Going to background — IMMEDIATELY save everything
+            if (state.isTracking) {
+                saveTodayData();
+                saveSettings();
+            }
         }
     }
 
@@ -703,6 +721,7 @@
                             updateUI();
                             checkAchievements();
                             updateChallengeProgress();
+                            quickSave();
                             if (state.steps % 100 === 0 && navigator.vibrate) navigator.vibrate([50, 30, 50]);
                         }
                     }
@@ -1126,10 +1145,14 @@ Calibrating: ${state.isCalibrating} | Cal Peaks: ${state.calibrationPeaks}`;
     }
 
     function saveTodayData() {
+        const elapsed = state.isTracking
+            ? state.elapsedMs + (Date.now() - (state.lastTickTime || Date.now()))
+            : state.elapsedMs;
         localStorage.setItem(getTodayKey(), JSON.stringify({
             steps: state.steps,
-            elapsedMs: state.isTracking ? state.elapsedMs + (Date.now() - (state.lastTickTime || Date.now())) : state.elapsedMs,
+            elapsedMs: elapsed,
             startTime: state.startTime,
+            wasTracking: state.isTracking,
             timestamp: Date.now()
         }));
     }
@@ -1137,11 +1160,30 @@ Calibrating: ${state.isCalibrating} | Cal Peaks: ${state.calibrationPeaks}`;
     function loadTodayData() {
         const d = localStorage.getItem(getTodayKey());
         if (d) {
-            try { const p = JSON.parse(d); state.steps = p.steps || 0; state.elapsedMs = p.elapsedMs || 0; state.startTime = p.startTime || null; } catch {}
+            try {
+                const p = JSON.parse(d);
+                state.steps = p.steps || 0;
+                state.elapsedMs = p.elapsedMs || 0;
+                state.startTime = p.startTime || null;
+                // If we were tracking when the page was killed, auto-resume
+                if (p.wasTracking && p.timestamp) {
+                    const timeSinceKill = Date.now() - p.timestamp;
+                    // Only auto-resume if killed less than 5 minutes ago
+                    if (timeSinceKill < 5 * 60 * 1000) {
+                        state._shouldAutoResume = true;
+                    }
+                }
+            } catch {}
         }
     }
 
     function autoSave() { if (state.steps > 0) saveTodayData(); }
+
+    // Quick save — called on every counted step so nothing is lost
+    function quickSave() {
+        saveTodayData();
+        saveSettings();
+    }
 
     function saveSettings() {
         localStorage.setItem('fittracker_settings', JSON.stringify({
